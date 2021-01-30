@@ -9,13 +9,19 @@ use r2d2_diesel::ConnectionManager;
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
 pub type DieselResult<T> = Result<T, diesel::result::Error>;
 
-pub fn get_full_plays(pool: web::Data<Pool>) -> DieselResult<Vec<models::FullPlay>> {
+pub fn get_full_plays(
+    pool: web::Data<Pool>,
+    station: &str,
+    date: &NaiveDate,
+) -> DieselResult<Vec<models::FullPlay>> {
     let conn = pool.get().unwrap();
-    let date_from = NaiveDate::from_ymd(2020, 12, 30).and_hms(0, 0, 0);
-    let date_to = NaiveDate::from_ymd(2020, 12, 30).and_hms(23, 59, 59);
+    let date_from = date.and_hms(0, 0, 0);
+    let date_to = date.and_hms(23, 59, 59);
     let items = plays::table
         .filter(plays::date.between(date_from, date_to))
         .inner_join(songs::table.inner_join(artists::table))
+        .inner_join(stations::table)
+        .filter(stations::key.eq(station))
         .select((plays::all_columns, songs::all_columns, artists::all_columns))
         .load::<(models::Play, models::Song, models::Artist)>(&*conn)?
         .iter()

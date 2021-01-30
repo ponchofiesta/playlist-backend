@@ -7,6 +7,7 @@ extern crate r2d2;
 extern crate r2d2_diesel;
 extern crate serde;
 
+pub mod api;
 pub mod db;
 pub mod handlers;
 pub mod models;
