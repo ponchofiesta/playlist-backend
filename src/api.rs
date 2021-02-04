@@ -1,5 +1,5 @@
 use crate::models::FullPlay;
-use chrono::NaiveDate;
+// use chrono::NaiveDate;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -19,7 +19,7 @@ impl Error {
 
 #[derive(Serialize)]
 pub struct PlaysDay {
-    pub previous_date: Option<NaiveDate>,
-    pub next_date: Option<NaiveDate>,
+    // pub previous_date: Option<NaiveDate>,
+    // pub next_date: Option<NaiveDate>,
     pub plays: Vec<FullPlay>,
 }
