@@ -1,8 +1,9 @@
 use crate::models;
 use crate::schema::{artists, plays, songs, stations};
-use chrono::{NaiveDate, NaiveDateTime};
-// use diesel::dsl::{max, min};
+use chrono::NaiveDate;
+use diesel::dsl::sql;
 use diesel::prelude::*;
+use diesel::sql_types::Text;
 use r2d2_diesel::ConnectionManager;
 
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -67,21 +68,6 @@ pub fn get_full_plays(
 //     })
 // }
 
-use diesel::sql_types::SqlType;
-use diesel::expression::TypedExpressionType;
-diesel::infix_operator!(SoundsLike, " SOUNDS LIKE ");
-use diesel::expression::AsExpression;
-
-fn sounds_like<T, U, ST>(left: T, right: U) -> SoundsLike<T, U::Expression>
-where
-    T: Expression<SqlType = ST>,
-    U: AsExpression<ST>,
-    ST: SqlType + TypedExpressionType,
-{
-    SoundsLike::new(left, right.as_expression())
-}
-
-
 pub fn search(
     connection: &MysqlConnection,
     station: &str,
@@ -89,11 +75,18 @@ pub fn search(
 ) -> DieselResult<Vec<models::FullPlay>> {
     let items = plays::table
         .inner_join(songs::table.inner_join(artists::table))
+        .inner_join(stations::table)
         .filter(stations::key.eq(station))
-        .filter(sounds_like(songs::title, term).or(sounds_like(artists::name, term)))
+        .filter(
+            sql("`artists`.`name` SOUNDS LIKE ")
+                .bind::<Text, _>(term)
+                .sql(" OR `songs`.`title` SOUNDS LIKE ")
+                .bind::<Text, _>(term),
+        )
         .select((plays::all_columns, songs::all_columns, artists::all_columns))
         .load::<(models::Play, models::Song, models::Artist)>(connection)?
         .iter()
         .map(|item| models::FullPlay::new(&item.0, &item.1, &item.2))
         .collect();
+    Ok(items)
 }

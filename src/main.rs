@@ -3,9 +3,9 @@ use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 use diesel::mysql::MysqlConnection;
 use dotenv::dotenv;
+use env_logger::Env;
 use r2d2_diesel::ConnectionManager;
 use std::env;
-use env_logger::Env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .data(pool.clone())
             .service(handlers::get_plays)
+            .service(handlers::search)
     })
     .bind("127.0.0.1:8080")?
     .run()

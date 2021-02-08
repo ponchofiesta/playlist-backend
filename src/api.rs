@@ -23,3 +23,10 @@ pub struct PlaysDay {
     // pub next_date: Option<NaiveDate>,
     pub plays: Vec<FullPlay>,
 }
+
+#[derive(Serialize)]
+pub struct SearchResults {
+    // pub previous_date: Option<NaiveDate>,
+    // pub next_date: Option<NaiveDate>,
+    pub plays: Vec<FullPlay>,
+}
