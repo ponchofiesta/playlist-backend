@@ -39,7 +39,8 @@ pub async fn get_plays(
 
 #[derive(Deserialize)]
 pub struct SearchParams {
-    pub term: String,
+    pub advanced: Option<bool>,
+    pub term: Option<String>,
     pub artist: Option<String>,
     pub title: Option<String>,
     pub date_from: Option<NaiveDate>,
@@ -57,7 +58,7 @@ pub async fn search(
         HttpResponse::InternalServerError()
             .json(Error::new(&format!("Database connection failed: {}", e)))
     })?;
-    let plays = db::search(&connection, &station, &params.term).map_err(|e| {
+    let plays = db::search(&connection, &station, &params).map_err(|e| {
         HttpResponse::InternalServerError().json(Error::new(&format!("Could not search: {}", e)))
     })?;
     Ok(HttpResponse::Ok().json(SearchResults { plays: plays }))
