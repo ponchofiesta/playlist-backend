@@ -1,4 +1,5 @@
 use crate::api::Error;
+use crate::api::Month;
 use crate::api::PlaysDay;
 use crate::api::SearchResults;
 use crate::db;
@@ -6,11 +7,13 @@ use actix_web::{get, web, HttpResponse};
 use chrono::NaiveDate;
 use serde::Deserialize;
 
+type HttpResult = Result<HttpResponse, HttpResponse>;
+
 #[get("/{station}/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}")]
 pub async fn get_plays(
     pool: web::Data<db::Pool>,
     web::Path((station, date)): web::Path<(String, String)>,
-) -> Result<HttpResponse, HttpResponse> {
+) -> HttpResult {
     let connection = pool.get().map_err(|e| {
         HttpResponse::InternalServerError()
             .json(Error::new(&format!("Database connection failed: {}", e)))
@@ -53,7 +56,7 @@ pub async fn search(
     pool: web::Data<db::Pool>,
     web::Path(station): web::Path<String>,
     params: web::Query<SearchParams>,
-) -> Result<HttpResponse, HttpResponse> {
+) -> HttpResult {
     let connection = pool.get().map_err(|e| {
         HttpResponse::InternalServerError()
             .json(Error::new(&format!("Database connection failed: {}", e)))
@@ -62,4 +65,22 @@ pub async fn search(
         HttpResponse::InternalServerError().json(Error::new(&format!("Could not search: {}", e)))
     })?;
     Ok(HttpResponse::Ok().json(SearchResults { plays: plays }))
+}
+
+#[get("/{station}/month/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}")]
+pub async fn month(
+    pool: web::Data<db::Pool>,
+    web::Path((station, date)): web::Path<(String, String)>,
+) -> HttpResult {
+    let connection = pool.get().map_err(|e| {
+        HttpResponse::InternalServerError()
+            .json(Error::new(&format!("Database connection failed: {}", e)))
+    })?;
+    let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| {
+        HttpResponse::BadRequest().json(Error::new(&format!("Date is invalid: {}", e)))
+    })?;
+    let days = db::get_month(&connection, &station, &date).map_err(|e| {
+        HttpResponse::InternalServerError().json(Error::new(&format!("Could not get month: {}", e)))
+    })?;
+    Ok(HttpResponse::Ok().json(Month { days: days }))
 }

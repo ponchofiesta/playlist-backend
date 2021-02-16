@@ -1,10 +1,14 @@
+use crate::api;
 use crate::handlers::SearchParams;
 use crate::models;
 use crate::schema::{artists, plays, songs, stations};
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use diesel::dsl::sql;
+use diesel::expression::AsExpression;
+use diesel::expression::Expression;
 use diesel::prelude::*;
 use diesel::sql_types::Text;
+use diesel::sql_types::Timestamp;
 use r2d2_diesel::ConnectionManager;
 
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -69,6 +73,16 @@ pub fn get_full_plays(
 //     })
 // }
 
+diesel_infix_operator!(SoundsLike, " SOUNDS LIKE ");
+
+fn sounds_like<T, U, ST>(left: T, right: U) -> SoundsLike<T, U::Expression>
+where
+    T: Expression<SqlType = ST>,
+    U: AsExpression<ST>,
+{
+    SoundsLike::new(left, right.as_expression())
+}
+
 pub fn search(
     connection: &MysqlConnection,
     station: &str,
@@ -88,11 +102,11 @@ pub fn search(
     if params.advanced.is_some() && params.advanced.unwrap() {
         if params.artist.is_some() {
             let artist = params.artist.as_deref().unwrap();
-            query = query.filter(sql("`artists`.`name` SOUNDS LIKE ").bind::<Text, _>(artist));
+            query = query.filter(sounds_like(artists::name, artist));
         }
         if params.title.is_some() {
             let title = params.title.as_deref().unwrap();
-            query = query.filter(sql("`songs`.`title` SOUNDS LIKE ").bind::<Text, _>(title));
+            query = query.filter(sounds_like(songs::title, title));
         }
         if params.date_from.is_some() && params.date_to.is_some() {
             let date_from = params.date_from.unwrap().and_hms(0, 0, 0);
@@ -102,30 +116,10 @@ pub fn search(
     } else {
         if params.term.is_some() {
             let term = params.term.as_deref().unwrap();
-            query = query.filter(
-                sql("`artists`.`name` SOUNDS LIKE ")
-                    .bind::<Text, _>(term)
-                    .sql(" OR `songs`.`title` SOUNDS LIKE ")
-                    .bind::<Text, _>(term),
-            );
+            query =
+                query.filter(sounds_like(artists::name, term).or(sounds_like(songs::title, term)));
         }
     }
-
-    // let items = plays::table
-    //     .inner_join(songs::table.inner_join(artists::table))
-    //     .inner_join(stations::table)
-    //     .filter(stations::key.eq(station))
-    //     .filter(
-    //         sql("`artists`.`name` SOUNDS LIKE ")
-    //             .bind::<Text, _>(&params.term)
-    //             .sql(" OR `songs`.`title` SOUNDS LIKE ")
-    //             .bind::<Text, _>(&params.term),
-    //     )
-    //     .select((plays::all_columns, songs::all_columns, artists::all_columns))
-    //     .load::<(models::Play, models::Song, models::Artist)>(connection)?
-    //     .iter()
-    //     .map(|item| models::FullPlay::new(&item.0, &item.1, &item.2))
-    //     .collect();
 
     let items = query
         .order(plays::date.desc())
@@ -134,5 +128,44 @@ pub fn search(
         .iter()
         .map(|item| models::FullPlay::new(&item.0, &item.1, &item.2))
         .collect();
+    Ok(items)
+}
+
+pub fn get_month(
+    connection: &MysqlConnection,
+    station: &str,
+    date: &NaiveDate,
+) -> DieselResult<Vec<api::Day>> {
+    let days_count = NaiveDate::from_ymd(
+        match date.month() {
+            12 => date.year() + 1,
+            _ => date.year(),
+        },
+        match date.month() {
+            12 => 1,
+            _ => date.month() + 1,
+        },
+        1,
+    )
+    .signed_duration_since(NaiveDate::from_ymd(date.year(), date.month(), 1))
+    .num_days();
+    let from_date = NaiveDate::from_ymd(date.year(), date.month(), 1).and_hms(0, 0, 0);
+    let to_date =
+        NaiveDate::from_ymd(date.year(), date.month(), days_count as u32).and_hms(23, 59, 59);
+
+    let items: Vec<api::Day> = sql(
+        "SELECT DATE(p.date) AS `day`, COUNT(DATE(p.date)) AS songs_count
+        FROM plays p
+        JOIN stations s ON p.station_id = s.id
+        WHERE s.`key` = ",
+    )
+    .bind::<Text, _>(station)
+    .sql(" AND p.date BETWEEN ")
+    .bind::<Timestamp, _>(from_date)
+    .sql(" AND ")
+    .bind::<Timestamp, _>(to_date)
+    .sql(" GROUP BY DATE(p.date)")
+    .load::<api::Day>(connection)?;
+
     Ok(items)
 }

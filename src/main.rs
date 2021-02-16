@@ -1,6 +1,7 @@
 use ::playlist_backend_lib::handlers;
+use actix_cors::Cors;
 use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
+use actix_web::{http, App, HttpServer};
 use diesel::mysql::MysqlConnection;
 use dotenv::dotenv;
 use env_logger::Env;
@@ -22,9 +23,18 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .wrap(
+                Cors::default()
+                    .send_wildcard()
+                    .allowed_methods(vec!["GET", "POST"])
+                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    .allowed_header(http::header::CONTENT_TYPE)
+                    .max_age(3600),
+            )
             .data(pool.clone())
             .service(handlers::get_plays)
             .service(handlers::search)
+            .service(handlers::month)
     })
     .bind("127.0.0.1:8080")?
     .run()

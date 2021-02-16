@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use crate::models::FullPlay;
 // use chrono::NaiveDate;
 use serde::Serialize;
@@ -29,4 +30,15 @@ pub struct SearchResults {
     // pub previous_date: Option<NaiveDate>,
     // pub next_date: Option<NaiveDate>,
     pub plays: Vec<FullPlay>,
+}
+
+#[derive(Serialize)]
+pub struct Month {
+    pub days: Vec<Day>,
+}
+
+#[derive(Serialize, Queryable)]
+pub struct Day {
+    pub day: NaiveDate,
+    pub songs_count: u32,
 }
