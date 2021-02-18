@@ -24,12 +24,12 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap(
-                Cors::default()
-                    .send_wildcard()
-                    .allowed_methods(vec!["GET", "POST"])
-                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-                    .allowed_header(http::header::CONTENT_TYPE)
-                    .max_age(3600),
+                Cors::permissive()
+                    // .send_wildcard()
+                    // .allowed_methods(vec!["GET", "POST"])
+                    // .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    // .allowed_header(http::header::CONTENT_TYPE)
+                    // .max_age(3600),
             )
             .data(pool.clone())
             .service(handlers::get_plays)

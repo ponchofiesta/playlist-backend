@@ -39,6 +39,6 @@ pub struct Month {
 
 #[derive(Serialize, Queryable)]
 pub struct Day {
-    pub day: NaiveDate,
+    pub date: NaiveDate,
     pub songs_count: u32,
 }
