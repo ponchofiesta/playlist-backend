@@ -26,6 +26,7 @@ pub fn get_full_plays(
         .inner_join(songs::table.inner_join(artists::table))
         .inner_join(stations::table)
         .filter(stations::key.eq(station))
+        .order(plays::date.desc())
         .select((plays::all_columns, songs::all_columns, artists::all_columns))
         .load::<(models::Play, models::Song, models::Artist)>(connection)?
         .iter()
