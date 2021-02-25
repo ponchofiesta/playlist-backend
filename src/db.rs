@@ -7,8 +7,7 @@ use diesel::dsl::sql;
 use diesel::expression::AsExpression;
 use diesel::expression::Expression;
 use diesel::prelude::*;
-use diesel::sql_types::Text;
-use diesel::sql_types::Timestamp;
+use diesel::sql_types::{Text, Timestamp, TinyInt};
 use r2d2_diesel::ConnectionManager;
 
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -18,7 +17,7 @@ pub fn get_full_plays(
     connection: &MysqlConnection,
     station: &str,
     date: &NaiveDate,
-) -> DieselResult<Vec<models::FullPlay>> {
+) -> DieselResult<Vec<api::FullPlay>> {
     let date_from = date.and_hms(0, 0, 0);
     let date_to = date.and_hms(23, 59, 59);
     let items = plays::table
@@ -30,7 +29,7 @@ pub fn get_full_plays(
         .select((plays::all_columns, songs::all_columns, artists::all_columns))
         .load::<(models::Play, models::Song, models::Artist)>(connection)?
         .iter()
-        .map(|item| models::FullPlay::new(&item.0, &item.1, &item.2))
+        .map(|item| api::FullPlay::new(&item.0, &item.1, &item.2))
         .collect();
     Ok(items)
 }
@@ -88,7 +87,7 @@ pub fn search(
     connection: &MysqlConnection,
     station: &str,
     params: &SearchParams,
-) -> DieselResult<Vec<models::FullPlay>> {
+) -> DieselResult<Vec<api::FullPlay>> {
     let mut query = plays::table
         .inner_join(songs::table.inner_join(artists::table))
         .inner_join(stations::table)
@@ -127,7 +126,7 @@ pub fn search(
         .limit(100)
         .load::<(models::Play, models::Song, models::Artist)>(connection)?
         .iter()
-        .map(|item| models::FullPlay::new(&item.0, &item.1, &item.2))
+        .map(|item| api::FullPlay::new(&item.0, &item.1, &item.2))
         .collect();
     Ok(items)
 }
@@ -154,19 +153,41 @@ pub fn get_month(
     let to_date =
         NaiveDate::from_ymd(date.year(), date.month(), days_count as u32).and_hms(23, 59, 59);
 
-    let items: Vec<api::Day> = sql(
+    let items = sql(
         "SELECT DATE(p.date) AS `day`, COUNT(DATE(p.date)) AS songs_count
         FROM plays p
         JOIN stations s ON p.station_id = s.id
-        WHERE s.`key` = ",
-    )
-    .bind::<Text, _>(station)
-    .sql(" AND p.date BETWEEN ")
-    .bind::<Timestamp, _>(from_date)
-    .sql(" AND ")
-    .bind::<Timestamp, _>(to_date)
-    .sql(" GROUP BY DATE(p.date)")
-    .load::<api::Day>(connection)?;
+        WHERE s.`key` = ")
+        .bind::<Text, _>(station)
+        .sql(" AND p.date BETWEEN ")
+        .bind::<Timestamp, _>(from_date)
+        .sql(" AND ")
+        .bind::<Timestamp, _>(to_date)
+        .sql(" GROUP BY DATE(p.date)")
+        .load::<api::Day>(connection)?;
 
     Ok(items)
 }
+
+pub fn stats_last(connection: &MysqlConnection,
+    station: &str, last: i8) -> DieselResult<Vec<api::StatsLastPlay>> {
+        let items = sql(
+            "SELECT p.*, s.*, a.*, COUNT(s.id) song_count
+            FROM plays p
+            JOIN songs s ON p.song_id = s.id
+            JOIN artists a ON s.artist_id = a.id
+            JOIN stations st ON p.station_id = st.id
+            WHERE st.`key` = ")
+            .bind::<Text, _>(station)
+            .sql(" AND p.date > CURDATE() - INTERVAL ")
+            .bind::<TinyInt, _>(last)
+            .sql(" DAY
+            GROUP BY s.id
+            ORDER BY song_count DESC")
+            .load::<(models::Play, models::Song, models::Artist, i32)>(connection)?
+            .iter()
+            .map(|item| api::StatsLastPlay::new(&item.0, &item.1, &item.2, item.3))
+            .collect();
+
+        Ok(items)
+    }

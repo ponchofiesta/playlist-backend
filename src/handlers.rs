@@ -84,3 +84,18 @@ pub async fn month(
     })?;
     Ok(HttpResponse::Ok().json(Month { days: days }))
 }
+
+#[get("/{station}/stats/last/:last")]
+pub async fn stats_last(
+    pool: web::Data<db::Pool>,
+    web::Path((station, last)): web::Path<(String, i8)>,
+) -> HttpResult {
+    let connection = pool.get().map_err(|e| {
+        HttpResponse::InternalServerError()
+            .json(Error::new(&format!("Database connection failed: {}", e)))
+    })?;
+    let stats = db::stats_last(&connection, &station, last).map_err(|e| {
+        HttpResponse::InternalServerError().json(Error::new(&format!("Could not get stats: {}", e)))
+    })?;
+    Ok(HttpResponse::Ok().json(""))
+}
