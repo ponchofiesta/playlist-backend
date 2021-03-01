@@ -35,6 +35,7 @@ async fn main() -> std::io::Result<()> {
             .service(handlers::get_plays)
             .service(handlers::search)
             .service(handlers::month)
+            .service(handlers::stats_last)
     })
     .bind("127.0.0.1:8080")?
     .run()

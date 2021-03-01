@@ -91,15 +91,13 @@ pub struct StatsLast {
 
 #[derive(Serialize)]
 pub struct StatsLastPlay {
-    pub id: u64,
     pub song: FullSong,
     pub song_count: i32,
 }
 
 impl StatsLastPlay {
-    pub fn new(play: &Play, song: &Song, artist: &Artist, song_count: i32) -> Self {
+    pub fn new(song: &Song, artist: &Artist, song_count: i32) -> Self {
         StatsLastPlay {
-            id: play.id,
             song: FullSong {
                 id: song.id,
                 artist: artist.clone(),

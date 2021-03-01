@@ -85,17 +85,20 @@ pub async fn month(
     Ok(HttpResponse::Ok().json(Month { days: days }))
 }
 
-#[get("/{station}/stats/last/:last")]
+#[get("/{station}/stats/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/last/{last}")]
 pub async fn stats_last(
     pool: web::Data<db::Pool>,
-    web::Path((station, last)): web::Path<(String, i8)>,
+    web::Path((station, date, last)): web::Path<(String, String, i8)>,
 ) -> HttpResult {
     let connection = pool.get().map_err(|e| {
         HttpResponse::InternalServerError()
             .json(Error::new(&format!("Database connection failed: {}", e)))
     })?;
-    let stats = db::stats_last(&connection, &station, last).map_err(|e| {
+    let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| {
+        HttpResponse::BadRequest().json(Error::new(&format!("Date is invalid: {}", e)))
+    })?;
+    let stats = db::stats_last(&connection, &station, &date, last).map_err(|e| {
         HttpResponse::InternalServerError().json(Error::new(&format!("Could not get stats: {}", e)))
     })?;
-    Ok(HttpResponse::Ok().json(""))
+    Ok(HttpResponse::Ok().json(stats))
 }

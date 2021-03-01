@@ -2,6 +2,7 @@ use crate::api;
 use crate::handlers::SearchParams;
 use crate::models;
 use crate::schema::{artists, plays, songs, stations};
+use chrono::Duration;
 use chrono::{Datelike, NaiveDate};
 use diesel::dsl::sql;
 use diesel::expression::AsExpression;
@@ -157,37 +158,47 @@ pub fn get_month(
         "SELECT DATE(p.date) AS `day`, COUNT(DATE(p.date)) AS songs_count
         FROM plays p
         JOIN stations s ON p.station_id = s.id
-        WHERE s.`key` = ")
-        .bind::<Text, _>(station)
-        .sql(" AND p.date BETWEEN ")
-        .bind::<Timestamp, _>(from_date)
-        .sql(" AND ")
-        .bind::<Timestamp, _>(to_date)
-        .sql(" GROUP BY DATE(p.date)")
-        .load::<api::Day>(connection)?;
+        WHERE s.`key` = ",
+    )
+    .bind::<Text, _>(station)
+    .sql(" AND p.date BETWEEN ")
+    .bind::<Timestamp, _>(from_date)
+    .sql(" AND ")
+    .bind::<Timestamp, _>(to_date)
+    .sql(" GROUP BY DATE(p.date)")
+    .load::<api::Day>(connection)?;
 
     Ok(items)
 }
 
-pub fn stats_last(connection: &MysqlConnection,
-    station: &str, last: i8) -> DieselResult<Vec<api::StatsLastPlay>> {
-        let items = sql(
-            "SELECT p.*, s.*, a.*, COUNT(s.id) song_count
+pub fn stats_last(
+    connection: &MysqlConnection,
+    station: &str,
+    date: &NaiveDate,
+    last: i8,
+) -> DieselResult<Vec<api::StatsLastPlay>> {
+    let date_from = date.and_hms(0, 0, 0) - Duration::days(last as i64);
+    let date_to = date.and_hms(23, 59, 59);
+
+    let items = sql("SELECT s.*, a.*, COUNT(s.id) song_count
             FROM plays p
             JOIN songs s ON p.song_id = s.id
             JOIN artists a ON s.artist_id = a.id
             JOIN stations st ON p.station_id = st.id
             WHERE st.`key` = ")
-            .bind::<Text, _>(station)
-            .sql(" AND p.date > CURDATE() - INTERVAL ")
-            .bind::<TinyInt, _>(last)
-            .sql(" DAY
-            GROUP BY s.id
-            ORDER BY song_count DESC")
-            .load::<(models::Play, models::Song, models::Artist, i32)>(connection)?
-            .iter()
-            .map(|item| api::StatsLastPlay::new(&item.0, &item.1, &item.2, item.3))
-            .collect();
+    .bind::<Text, _>(station)
+    .sql(" AND p.date BETWEEN ")
+    .bind::<Timestamp, _>(date_from)
+    .sql(" AND ")
+    .bind::<Timestamp, _>(date_to)
+    .sql("
+        GROUP BY s.id
+        ORDER BY song_count DESC",
+    )
+    .load::<(models::Song, models::Artist, i32)>(connection)?
+    .iter()
+    .map(|item| api::StatsLastPlay::new(&item.0, &item.1, item.2))
+    .collect();
 
-        Ok(items)
-    }
+    Ok(items)
+}
