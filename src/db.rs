@@ -8,7 +8,7 @@ use diesel::dsl::sql;
 use diesel::expression::AsExpression;
 use diesel::expression::Expression;
 use diesel::prelude::*;
-use diesel::sql_types::{Text, Timestamp, TinyInt};
+use diesel::sql_types::{Text, Timestamp};
 use r2d2_diesel::ConnectionManager;
 
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
